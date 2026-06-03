@@ -80,6 +80,18 @@ local SECTIONS = {
             { label = "Продажа оружия",  pos = Vector3.new( 6045.18,  17.00,  1091.05) },
         },
     },
+    {
+        name   = "БОССЫ",
+        accent = Color3.fromRGB(220, 60, 120),
+        icon   = "💀",
+        points = {
+            { label = "Darkness Boss Spawn",  pos = Vector3.new( 3600.26,  -50.32, -3097.45) },
+            { label = "Denji Boss Spawn",     pos = Vector3.new( 3376.33,  702.28,   194.51) },
+            { label = "Sangvis Ferri M16A1",  pos = Vector3.new(-6812.37,  212.13, -2410.01) },
+            { label = "Dio Brando Boss Spawn",pos = Vector3.new(  769.63,  213.15, -4102.13) },
+            { label = "Mori Calliope",        pos = Vector3.new( 3849.21,  228.62, -4815.19) },
+        },
+    },
 }
 
 -- ══════════════════════════════════════════
@@ -201,8 +213,10 @@ sg.IgnoreGuiInset = true
 sg.Parent = playerGui
 
 -- ══════════════════════════════════════════
---  TOAST
+--  TOAST  (FIX: длительность 1.5с вместо 2.8с)
 -- ══════════════════════════════════════════
+
+local TOAST_DURATION = 1.5   -- было 2.8
 
 local toastQueue = {}
 local toastActive = false
@@ -262,9 +276,9 @@ local function showToast(title, message, accent)
         corner(prog, 2)
 
         tween(toast, {Position = UDim2.new(1, -16, 1, -90)}, 0.35, Enum.EasingStyle.Back)
-        TweenService:Create(prog, TweenInfo.new(2.8, Enum.EasingStyle.Linear), {Size = UDim2.new(0, 0, 0, 2)}):Play()
+        TweenService:Create(prog, TweenInfo.new(TOAST_DURATION, Enum.EasingStyle.Linear), {Size = UDim2.new(0, 0, 0, 2)}):Play()
 
-        task.delay(2.8, function()
+        task.delay(TOAST_DURATION, function()
             tween(toast, {Position = UDim2.new(1, 340, 1, -90)}, 0.3)
             task.delay(0.35, function()
                 toast:Destroy()
@@ -292,18 +306,19 @@ local container = newFrame(sg, {
 })
 
 local shadow = newFrame(container, {
-    Size = UDim2.fromScale(1, 1),
+    Size = UDim2.fromOffset(WIN_W + 40, WIN_H + 40),   -- FIX: правильный размер с самого начала
     Position = UDim2.fromOffset(0, 0),
     BackgroundColor3 = Color3.fromRGB(0, 0, 0),
-    BackgroundTransparency = 0.45,
+    BackgroundTransparency = 1,                        -- FIX: начинаем прозрачным, анимируем до 0.45
     ZIndex = 2,
 })
 corner(shadow, 20)
 
 local win = newFrame(container, {
-    Size     = UDim2.fromOffset(WIN_W, WIN_H),
+    Size     = UDim2.fromOffset(WIN_W, WIN_H),         -- FIX: правильный размер с самого начала
     Position = UDim2.fromOffset(20, 20),
     BackgroundColor3 = C.bg,
+    BackgroundTransparency = 1,                        -- FIX: начинаем прозрачным
     ClipsDescendants = true,
     ZIndex   = 3,
 })
@@ -450,7 +465,7 @@ newLabel(getBtn, {
     ZIndex = 7,
 })
 
--- ══ ТАБЫ (3 штуки: Телепорт / Координаты / Помощь) ══
+-- ══ ТАБЫ ══
 
 local TAB_H = 38
 
@@ -484,7 +499,6 @@ for i, name in ipairs(tabNames) do
     })
     if i == 1 then corner(tb, 7) end
 
-    -- Помощь — зелёный акцент
     local lblColor = i == 1 and C.white or C.textDim
 
     local lbl = newLabel(tb, {
@@ -881,15 +895,20 @@ local fullbrightEnabled = false
 local nofogEnabled      = false
 local noclipEnabled     = false
 local flySpeed          = 50
-local flyBindKey        = Enum.KeyCode.G   -- дефолтный бинд fly
-local bindListening     = false            -- режим ожидания нажатия клавиши
+local flyBindKey        = Enum.KeyCode.G
+local bindListening     = false
 
--- ── Сохранённые оригинальные значения освещения ──
-local origAmbient       = Lighting.Ambient
-local origBrightness    = Lighting.Brightness
-local origFogEnd        = Lighting.FogEnd
-local origFogStart      = Lighting.FogStart
-local origOutdoorAmbient= Lighting.OutdoorAmbient
+-- ════ FIX: Сохраняем оригинальные значения освещения ПОСЛЕ загрузки ════
+-- Ждём один кадр чтобы игра успела загрузить настройки освещения
+local origAmbient, origBrightness, origFogEnd, origFogStart, origOutdoorAmbient
+
+task.defer(function()
+    origAmbient        = Lighting.Ambient
+    origBrightness     = Lighting.Brightness
+    origFogEnd         = Lighting.FogEnd
+    origFogStart       = Lighting.FogStart
+    origOutdoorAmbient = Lighting.OutdoorAmbient
+end)
 
 -- ════ FLY ЛОГИКА ════
 
@@ -967,63 +986,71 @@ local function stopFly()
     end
 end
 
-local function setFly(state, flyToggleLabel, flyToggleBtn, flyStroke)
-    flyEnabled = state
-    if state then
-        startFly()
-        tween(flyToggleBtn,   {BackgroundColor3 = Color3.fromRGB(20,80,30)}, 0.15)
-        tween(flyStroke,      {Color = C.success}, 0.15)
-        flyToggleLabel.Text = "✈  Полёт  ON"
-        flyToggleLabel.TextColor3 = C.success
-    else
-        stopFly()
-        tween(flyToggleBtn,   {BackgroundColor3 = C.accentDim}, 0.15)
-        tween(flyStroke,      {Color = C.accent}, 0.15)
-        flyToggleLabel.Text = "✈  Полёт  OFF"
-        flyToggleLabel.TextColor3 = C.accent
-    end
-end
-
--- ════ FULLBRIGHT ЛОГИКА ════
+-- ════ FULLBRIGHT ЛОГИКА (FIX) ════
 
 local function setFullbright(state, label, btn, st)
     fullbrightEnabled = state
     if state then
-        Lighting.Ambient         = Color3.fromRGB(178,178,178)
-        Lighting.Brightness      = 2
-        Lighting.OutdoorAmbient  = Color3.fromRGB(178,178,178)
-        tween(btn, {BackgroundColor3 = Color3.fromRGB(60,50,10)}, 0.15)
+        -- FIX: устанавливаем значения напрямую без tween для Lighting
+        Lighting.Ambient        = Color3.fromRGB(178, 178, 178)
+        Lighting.Brightness     = 2
+        Lighting.OutdoorAmbient = Color3.fromRGB(178, 178, 178)
+        -- Убираем атмосферу и туман если есть
+        local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+        if atmosphere then atmosphere.Density = 0 end
+        tween(btn, {BackgroundColor3 = Color3.fromRGB(60, 50, 10)}, 0.15)
         tween(st,  {Color = C.orange}, 0.15)
-        label.Text      = "☀  Fullbright  ON"
+        label.Text       = "☀  Fullbright  ON"
         label.TextColor3 = C.orange
     else
-        Lighting.Ambient         = origAmbient
-        Lighting.Brightness      = origBrightness
-        Lighting.OutdoorAmbient  = origOutdoorAmbient
+        -- FIX: восстанавливаем оригинальные значения
+        if origAmbient then
+            Lighting.Ambient        = origAmbient
+            Lighting.Brightness     = origBrightness
+            Lighting.OutdoorAmbient = origOutdoorAmbient
+        end
+        local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+        if atmosphere then atmosphere.Density = nil end  -- сбросит на дефолт
         tween(btn, {BackgroundColor3 = C.accentDim}, 0.15)
         tween(st,  {Color = C.accent}, 0.15)
-        label.Text      = "☀  Fullbright  OFF"
+        label.Text       = "☀  Fullbright  OFF"
         label.TextColor3 = C.accent
     end
 end
 
--- ════ NOFOG ЛОГИКА ════
+-- ════ NOFOG ЛОГИКА (FIX) ════
 
 local function setNofog(state, label, btn, st)
     nofogEnabled = state
     if state then
-        Lighting.FogEnd   = 1e6
-        Lighting.FogStart = 1e6
-        tween(btn, {BackgroundColor3 = Color3.fromRGB(10,40,60)}, 0.15)
-        tween(st,  {Color = Color3.fromRGB(80,200,255)}, 0.15)
-        label.Text      = "🌫  NoFog  ON"
-        label.TextColor3 = Color3.fromRGB(80,200,255)
+        -- FIX: устанавливаем напрямую
+        Lighting.FogEnd   = 100000
+        Lighting.FogStart = 100000
+        -- Также отключаем Atmosphere если есть
+        local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+        if atmosphere then
+            atmosphere.Density  = 0
+            atmosphere.Haze     = 0
+        end
+        tween(btn, {BackgroundColor3 = Color3.fromRGB(10, 40, 60)}, 0.15)
+        tween(st,  {Color = Color3.fromRGB(80, 200, 255)}, 0.15)
+        label.Text       = "🌫  NoFog  ON"
+        label.TextColor3 = Color3.fromRGB(80, 200, 255)
     else
-        Lighting.FogEnd   = origFogEnd
-        Lighting.FogStart = origFogStart
+        if origFogEnd then
+            Lighting.FogEnd   = origFogEnd
+            Lighting.FogStart = origFogStart
+        end
+        -- Восстанавливаем Atmosphere
+        local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+        if atmosphere then
+            -- сбрасываем к дефолтным значениям Roblox
+            atmosphere.Density  = 0.395
+            atmosphere.Haze     = 0
+        end
         tween(btn, {BackgroundColor3 = C.accentDim}, 0.15)
         tween(st,  {Color = C.accent}, 0.15)
-        label.Text      = "🌫  NoFog  OFF"
+        label.Text       = "🌫  NoFog  OFF"
         label.TextColor3 = C.accent
     end
 end
@@ -1036,7 +1063,7 @@ local function setNoclip(state, label, btn, st)
     noclipEnabled = state
     local ncColor = Color3.fromRGB(255, 120, 200)
     if state then
-        tween(btn, {BackgroundColor3 = Color3.fromRGB(60,20,50)}, 0.15)
+        tween(btn, {BackgroundColor3 = Color3.fromRGB(60, 20, 50)}, 0.15)
         tween(st,  {Color = ncColor}, 0.15)
         label.Text       = "👻  NoClip  ON"
         label.TextColor3 = ncColor
@@ -1052,7 +1079,6 @@ local function setNoclip(state, label, btn, st)
         end)
     else
         if noclipConn then noclipConn:Disconnect() noclipConn = nil end
-        -- Восстанавливаем коллизию HRP и деталей
         local char = player.Character
         if char then
             for _, part in ipairs(char:GetDescendants()) do
@@ -1068,8 +1094,6 @@ local function setNoclip(state, label, btn, st)
     end
 end
 
-
-
 -- Хелпер: карточка-переключатель
 local function makeToggleRow(parent, yOff, icon, labelText, accentCol)
     local btn = newButton(parent, {
@@ -1081,7 +1105,6 @@ local function makeToggleRow(parent, yOff, icon, labelText, accentCol)
     corner(btn, 10)
     local st = stroke(btn, accentCol or C.accent, 1.5)
 
-    -- Left bar
     local lb = newFrame(btn, {
         Size = UDim2.fromOffset(3, 24),
         Position = UDim2.fromOffset(0, 10),
@@ -1090,7 +1113,6 @@ local function makeToggleRow(parent, yOff, icon, labelText, accentCol)
     })
     corner(lb, 2)
 
-    -- Icon badge
     local ibg = newFrame(btn, {
         Size = UDim2.fromOffset(32, 32),
         Position = UDim2.fromOffset(10, 6),
@@ -1120,7 +1142,6 @@ local function makeToggleRow(parent, yOff, icon, labelText, accentCol)
         ZIndex = 7,
     })
 
-    -- Toggle pill справа
     local pillBg = newFrame(btn, {
         Size = UDim2.fromOffset(44, 22),
         Position = UDim2.new(1, -54, 0, 11),
@@ -1191,10 +1212,9 @@ newLabel(flySecHeader, {
     ZIndex = 7,
 })
 
--- Кнопка toggle fly
 local flyToggleBtn, flyToggleLabel, flyToggleStroke, flyUpdatePill =
     makeToggleRow(page3, sectionYFly + 30, "✈", "✈  Полёт  OFF", C.success)
-flyToggleLabel.TextColor3 = C.accent  -- дефолт OFF
+flyToggleLabel.TextColor3 = C.accent
 
 flyToggleBtn.MouseButton1Click:Connect(function()
     ripple(flyToggleBtn, C.success)
@@ -1215,7 +1235,6 @@ flyToggleBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Регулятор скорости
 local speedCard = newFrame(page3, {
     Size = UDim2.new(1, -p3pad*2, 0, 52),
     Position = UDim2.fromOffset(p3pad, sectionYFly + 82),
@@ -1246,7 +1265,6 @@ local speedValLabel = newLabel(speedCard, {
     ZIndex = 7,
 })
 
--- Кнопка -
 local speedMinusBtn = newButton(speedCard, {
     Size = UDim2.fromOffset(30, 30),
     Position = UDim2.fromOffset(8, 11),
@@ -1264,7 +1282,6 @@ newLabel(speedMinusBtn, {
     ZIndex = 8,
 })
 
--- Кнопка +
 local speedPlusBtn = newButton(speedCard, {
     Size = UDim2.fromOffset(30, 30),
     Position = UDim2.new(1, -38, 0, 11),
@@ -1298,7 +1315,6 @@ speedPlusBtn.MouseButton1Click:Connect(function()
     task.delay(0.3, function() tween(speedValLabel, {TextColor3 = C.success}, 0.2) end)
 end)
 
--- Бинд кнопки полёта
 local bindCard = newFrame(page3, {
     Size = UDim2.new(1, -p3pad*2, 0, 44),
     Position = UDim2.fromOffset(p3pad, sectionYFly + 142),
@@ -1373,7 +1389,6 @@ newLabel(gfxSecHeader, {
     ZIndex = 7,
 })
 
--- Fullbright toggle
 local fbBtn, fbLabel, fbStroke, fbUpdatePill =
     makeToggleRow(page3, gfxY + 30, "☀", "☀  Fullbright  OFF", C.orange)
 fbLabel.TextColor3 = C.accent
@@ -1387,7 +1402,6 @@ fbBtn.MouseButton1Click:Connect(function()
         fullbrightEnabled and C.orange or C.accent)
 end)
 
--- NoFog toggle
 local nfBtn, nfLabel, nfStroke, nfUpdatePill =
     makeToggleRow(page3, gfxY + 82, "🌫", "🌫  NoFog  OFF", Color3.fromRGB(80,200,255))
 nfLabel.TextColor3 = C.accent
@@ -1401,7 +1415,6 @@ nfBtn.MouseButton1Click:Connect(function()
         nofogEnabled and Color3.fromRGB(80,200,255) or C.accent)
 end)
 
--- NoClip toggle
 local ncColor = Color3.fromRGB(255, 120, 200)
 local ncBtn, ncLabel, ncStroke, ncUpdatePill =
     makeToggleRow(page3, gfxY + 134, "👻", "👻  NoClip  OFF", ncColor)
@@ -1443,8 +1456,6 @@ end
 -- ════════════════════════════════
 
 local pages = {page1, page2, page3}
-
--- Цвета активных табов
 local tabAccents = {C.accent, C.accent, C.success}
 
 local function switchTab(idx)
@@ -1459,7 +1470,6 @@ local function switchTab(idx)
     tween(tabBtns[activeTab].label, {TextColor3 = C.white}, 0.18)
 end
 
--- Начальное состояние
 tabBtns[1].btn.BackgroundColor3 = C.accent
 tabBtns[1].btn.BackgroundTransparency = 0
 corner(tabBtns[1].btn, 7)
@@ -1477,7 +1487,6 @@ local isHidden    = false
 
 closeBtn.MouseButton1Click:Connect(function()
     ripple(closeBtn, C.danger)
-    -- Выключить fly при закрытии
     if flyEnabled then stopFly() end
     tween(container, {Position = UDim2.new(0.5, -(WIN_W/2+20), 1.2, 0)}, 0.35, Enum.EasingStyle.Quart)
     tween(win,    {BackgroundTransparency = 1}, 0.3)
@@ -1512,7 +1521,6 @@ end)
 -- ════════════════════════════════
 
 UserInputService.InputBegan:Connect(function(input, gp)
-    -- Бинд-режим: ловим любую клавишу
     if bindListening then
         if input.UserInputType == Enum.UserInputType.Keyboard then
             bindListening = false
@@ -1531,7 +1539,6 @@ UserInputService.InputBegan:Connect(function(input, gp)
         updateCoords()
 
     elseif input.KeyCode == flyBindKey then
-        -- Бинд полёта
         flyEnabled = not flyEnabled
         flyUpdatePill(flyEnabled)
         if flyEnabled then
@@ -1566,7 +1573,6 @@ UserInputService.InputBegan:Connect(function(input, gp)
     end
 end)
 
--- Выключить fly если персонаж умер / respawn
 player.CharacterRemoving:Connect(function()
     if flyEnabled then
         flyEnabled = false
@@ -1585,18 +1591,20 @@ player.CharacterRemoving:Connect(function()
 end)
 
 -- ════════════════════════════════
---  АНИМАЦИЯ ОТКРЫТИЯ
+--  АНИМАЦИЯ ОТКРЫТИЯ (FIX)
+--  Не меняем Size — меняем только прозрачность + лёгкое смещение
 -- ════════════════════════════════
 
 container.Visible = true
-win.Size  = UDim2.fromOffset(WIN_W, 0)
+container.Position = UDim2.new(0.5, -(WIN_W/2 + 20), 0.5, -(WIN_H/2 + 20) + 20)  -- чуть ниже
 win.BackgroundTransparency = 1
 shadow.BackgroundTransparency = 1
-shadow.Size = UDim2.fromOffset(WIN_W+40, 0)
 
-tween(win,    {Size = UDim2.fromOffset(WIN_W, WIN_H), BackgroundTransparency = 0}, 0.4, Enum.EasingStyle.Back)
-tween(shadow, {Size = UDim2.fromOffset(WIN_W+40, WIN_H+40), BackgroundTransparency = 0.45}, 0.4, Enum.EasingStyle.Back)
+-- Плавно появляется + поднимается на 20px
+tween(win,       {BackgroundTransparency = 0}, 0.35, Enum.EasingStyle.Quart)
+tween(shadow,    {BackgroundTransparency = 0.45}, 0.35, Enum.EasingStyle.Quart)
+tween(container, {Position = UDim2.new(0.5, -(WIN_W/2 + 20), 0.5, -(WIN_H/2 + 20))}, 0.35, Enum.EasingStyle.Quart)
 
-task.delay(0.55, function()
-    showToast("b1ns4s menu", "Готово! Помощь → ✈ Fly / ☀ FBright / 🌫 NoFog", C.success)
+task.delay(0.45, function()
+    showToast("b1ns4s menu", "Готово! ✈ Fly / ☀ FBright / 🌫 NoFog", C.success)
 end)
